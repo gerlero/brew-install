@@ -19,9 +19,13 @@ GitHub Action to install and cache Homebrew packages.
 
 **Required**. A formula or cask name or a whitespace-separated list of formula/cask names to install.
 
-### `cache` 
+### `cache`
 
 Whether to cache installed packages between runs. Default: `true`.
+
+### `type`
+
+The type of the packages to install. Possible values: `any`, `formula`, `cask`. Default: `any`.
 
 ## Related actions
 

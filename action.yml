@@ -8,6 +8,9 @@ inputs:
   cache:
     description: Cache the downloaded packages
     default: true
+  type:
+    description: The type of packages to install (formula or cask)
+    default: any
 
 branding:
   icon: package
@@ -23,16 +26,28 @@ runs:
         packages="${packages//$'\n'/ }"
         echo "packages=$packages" >> "$GITHUB_OUTPUT"
 
+        flags=""
+        if [ ${{ inputs.type }} != 'any' ]; then
+          flags+="--${{ inputs.type }} "
+        fi
+        echo "flags=$flags" >> "$GITHUB_OUTPUT"
+
         if [ ${{ inputs.cache }} == 'true' ]; then
           mkdir .brew-install
 
-          brew install --dry-run --quiet $packages \
-            | { grep --invert-match '==>' || true; } \
-            | tr ' ' '\n' \
-            | sort --unique \
-          > .brew-install/packages.txt
+          to_install=$(brew install $flags --dry-run --quiet -- $packages \
+            | { grep --invert-match '==>' || true; })
 
-          xargs < .brew-install/packages.txt brew --cache > .brew-install/cache-paths.txt
+          required="$(head -1 <<< "$to_install")"
+          dependencies="$(tail -n+2 <<< "$to_install")"
+          dependencies="${dependencies//$'\n'/ }"
+
+          touch .brew-install/cache-paths.txt
+          [ -z "$required" ] || brew --cache $flags -- $required >> .brew-install/cache-paths.txt
+          [ -z "$dependencies" ] || brew --cache -- $dependencies >> .brew-install/cache-paths.txt
+          sort --unique --output=.brew-install/cache-paths.txt .brew-install/cache-paths.txt
+
+          sort --unique --output=.brew-install/packages.txt <<< "${to_install// /$'\n'}"
 
           echo 'cache-paths<<"EOF"' >> "$GITHUB_OUTPUT"
           cat .brew-install/cache-paths.txt >> "$GITHUB_OUTPUT"
@@ -49,7 +64,7 @@ runs:
         restore-keys: brew-install-${{ hashFiles('.brew-install/packages.txt') }}-
     - name: Install packages
       if: inputs.cache != 'true' || steps.prep.outputs.cache-paths != ''
-      run: brew install ${{ steps.prep.outputs.packages }}
+      run: brew install ${{ steps.prep.outputs.flags }} -- ${{ steps.prep.outputs.packages }}
       shell: bash
     - name: Save cache
       if: inputs.cache == 'true' && steps.prep.outputs.cache-paths != '' && steps.cache.outputs.cache-hit != 'true'
