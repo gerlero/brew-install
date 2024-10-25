@@ -37,5 +37,6 @@ jobs:
         if: runner.os == 'macOS'
         uses: ./
         with:
-          packages: visual-studio-code
+          packages: vv
+          type: cask
           cache: ${{ matrix.cache }}
