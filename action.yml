@@ -1,0 +1,64 @@
+name: Install and cache Homebrew packages
+description: Cache Homebrew formulae and casks to speed up your workflows
+
+inputs:
+  packages:
+    description:  Formulae or casks to install
+    required: true
+  cache:
+    description: Cache the downloaded packages
+    default: true
+
+branding:
+  icon: package
+  color: yellow
+
+runs:
+  using: "composite"
+  steps:
+    - name: Prepare
+      id: prep
+      run: |
+        packages="${{ inputs.packages }}"
+        packages="${packages//$'\n'/ }"
+        echo "packages=$packages" >> "$GITHUB_OUTPUT"
+
+        if [ ${{ inputs.cache }} == 'true' ]; then
+          mkdir .brew-install
+
+          brew install --dry-run --quiet $packages \
+            | { grep --invert-match '==>' || true; } \
+            | tr ' ' '\n' \
+            | sort --unique \
+          > .brew-install/packages.txt
+
+          xargs < .brew-install/packages.txt brew --cache > .brew-install/cache-paths.txt
+
+          echo 'cache-paths<<"EOF"' >> "$GITHUB_OUTPUT"
+          cat .brew-install/cache-paths.txt >> "$GITHUB_OUTPUT"
+          echo '"EOF"' >> "$GITHUB_OUTPUT"
+        fi
+      shell: bash
+    - name: Restore cache
+      id: cache
+      if: inputs.cache == 'true' && steps.prep.outputs.cache-paths != ''
+      uses: actions/cache/restore@v4
+      with:
+        path: ${{ steps.prep.outputs.cache-paths }}
+        key: brew-install-${{ hashFiles('.brew-install/packages.txt') }}-${{ hashFiles('.brew-install/cache-paths.txt') }}
+        restore-keys: brew-install-${{ hashFiles('.brew-install/packages.txt') }}-
+    - name: Install packages
+      if: inputs.cache != 'true' || steps.prep.outputs.cache-paths != ''
+      run: brew install ${{ steps.prep.outputs.packages }}
+      shell: bash
+    - name: Save cache
+      if: inputs.cache == 'true' && steps.prep.outputs.cache-paths != '' && steps.cache.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ steps.prep.outputs.cache-paths }}
+        key: ${{ steps.cache.outputs.cache-primary-key }}
+    - name: Clean up
+      if: inputs.cache == 'true' && always()
+      run: |
+        rm -rf .brew-install
+      shell: bash

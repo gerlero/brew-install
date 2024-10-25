@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  ci:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-15, macos-14, macos-13, macos-12, ubuntu-24.04, ubuntu-22.04, ubuntu-20.04]
+        cache: [true, false]
+      fail-fast: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Homebrew
+        if: runner.os != 'macOS'
+        uses: Homebrew/actions/setup-homebrew@master
+      - name: Install possibly existing formula
+        uses: ./
+        with:
+          packages: python
+          cache: ${{ matrix.cache }}
+      - name: Install new formula
+        uses: ./
+        with:
+          packages: open-mpi
+          cache: ${{ matrix.cache }}
+      - name: Install cask
+        if: runner.os == 'macOS'
+        uses: ./
+        with:
+          packages: visual-studio-code
+          cache: ${{ matrix.cache }}
