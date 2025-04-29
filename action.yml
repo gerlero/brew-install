@@ -36,7 +36,7 @@ runs:
           mkdir .brew-install
 
           to_install=$(brew install $flags --dry-run --quiet -- $packages \
-            | { grep --invert-match '==>' || true; })
+            | { grep --invert-match --extended-regexp --regexp='==>|installed but outdated' || true; } )
 
           required="$(head -1 <<< "$to_install")"
           dependencies="$(tail -n+2 <<< "$to_install")"
