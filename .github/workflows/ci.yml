@@ -14,17 +14,54 @@ on:
 jobs:
   ci:
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
     strategy:
       matrix:
         os: [macos-15, macos-14, macos-15-intel, ubuntu-24.04, ubuntu-22.04, ubuntu-24.04-arm, ubuntu-22.04-arm]
         cache: [true, false]
+        include:
+          - os: ubuntu-latest
+            container: ubuntu:24.04
+            cache: true
+          - os: ubuntu-latest
+            container: ubuntu:24.04
+            cache: false
+          - os: ubuntu-latest
+            container: ubuntu:22.04
+            cache: true
+          - os: ubuntu-latest
+            container: ubuntu:22.04
+            cache: false
+          - os: ubuntu-latest
+            container: debian:bookworm
+            cache: true
+          - os: ubuntu-latest
+            container: debian:bookworm
+            cache: false
+          - os: ubuntu-latest
+            container: debian:bullseye
+            cache: true
+          - os: ubuntu-latest
+            container: debian:bullseye
+            cache: false
       fail-fast: false
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+      - name: Install prerequisites
+        if: runner.os == 'Linux' && matrix.container
+        uses: gerlero/apt-install@v1
+        with:
+          # https://docs.brew.sh/Homebrew-on-Linux#requirements
+          packages: build-essential procps curl file git
+          upgrade: false
       - name: Set up Homebrew
         if: runner.os != 'macOS'
         uses: Homebrew/actions/setup-homebrew@master
+      - name: Configure Homebrew in container
+        if: runner.os == 'Linux' && matrix.container
+        run: |
+          echo "/home/linuxbrew/.linuxbrew/bin" >> "$GITHUB_PATH"
       - name: Install possibly existing formula
         uses: ./
         with:
