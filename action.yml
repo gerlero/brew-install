@@ -57,7 +57,7 @@ runs:
     - name: Restore cache
       id: cache
       if: inputs.cache == 'true' && steps.prep.outputs.cache-paths != ''
-      uses: actions/cache/restore@v4
+      uses: actions/cache/restore@v5
       with:
         path: ${{ steps.prep.outputs.cache-paths }}
         key: brew-install-${{ hashFiles('.brew-install/packages.txt') }}-${{ hashFiles('.brew-install/cache-paths.txt') }}
@@ -68,7 +68,7 @@ runs:
       shell: bash
     - name: Save cache
       if: inputs.cache == 'true' && steps.prep.outputs.cache-paths != '' && steps.cache.outputs.cache-hit != 'true'
-      uses: actions/cache/save@v4
+      uses: actions/cache/save@v5
       with:
         path: ${{ steps.prep.outputs.cache-paths }}
         key: ${{ steps.cache.outputs.cache-primary-key }}
