@@ -47,6 +47,12 @@ jobs:
             container: ubuntu:22.04
             cache: false
           - os: ubuntu-latest
+            container: debian:trixie
+            cache: true
+          - os: ubuntu-latest
+            container: debian:trixie
+            cache: false
+          - os: ubuntu-latest
             container: debian:bookworm
             cache: true
           - os: ubuntu-latest
