@@ -80,7 +80,7 @@ jobs:
           upgrade: false
       - name: Set up Homebrew
         if: runner.os != 'macOS'
-        uses: Homebrew/actions/setup-homebrew@master
+        uses: Homebrew/actions/setup-homebrew@main
       - name: Configure Homebrew in container
         if: runner.os == 'Linux' && matrix.container
         run: |
