@@ -61,12 +61,6 @@ jobs:
           - os: ubuntu-latest
             container: debian:bookworm
             cache: false
-          - os: ubuntu-latest
-            container: debian:bullseye
-            cache: true
-          - os: ubuntu-latest
-            container: debian:bullseye
-            cache: false
       fail-fast: false
     steps:
       - name: Checkout
