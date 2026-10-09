@@ -3,7 +3,7 @@ description: Cache Homebrew formulae and casks to speed up your workflows
 
 inputs:
   packages:
-    description:  Formulae or casks to install
+    description: Formulae or casks to install
     required: true
   cache:
     description: Cache the downloaded packages
@@ -34,24 +34,51 @@ runs:
 
         if [ ${{ inputs.cache }} == 'true' ]; then
           mkdir .brew-install
+          to_install=$(brew install $flags --dry-run --quiet -- $packages | awk '
+            function flush(   i, line, words, n, j) {
+              if (section == "" || nlines == 0) return
+              for (i = 1; i <= nlines; i++) {
+                line = lines[i]
+                sub(/^[[:space:]]+/, "", line)
+                n = split(line, words, /[[:space:]]+/)
+                for (j = 1; j <= (nlines == expected ? 1 : n); j++) {
+                  if (words[j] != "") print section, words[j]
+                }
+              }
+              delete lines
+              nlines = 0
+            }
+            /^==> Would (install|upgrade|reinstall) [0-9]+ formula(e|s)?:/ {
+              flush(); section = "formula"; expected = $4; next
+            }
+            /^==> Would (install|upgrade|reinstall) [0-9]+ casks?:/ {
+              flush(); section = "cask"; expected = $4; next
+            }
+            /^==> Would (install|upgrade|reinstall) [0-9]+ dependenc(y|ies)/ {
+              flush(); section = "dependency"; expected = $4; next
+            }
+            /^==>/ { flush(); section = ""; next }
+            /installed but outdated/ { next }
+            section != "" && NF { lines[++nlines] = $0 }
+            END { flush() }
+          ')
 
-          to_install=$(brew install $flags --dry-run --quiet -- $packages \
-            | { grep --invert-match --extended-regexp --regexp='==>|installed but outdated' || true; } )
+          formulae="$(awk '$1 == "formula" { print $2 }' <<< "$to_install")"
+          casks="$(awk '$1 == "cask" { print $2 }' <<< "$to_install")"
+          dependencies="$(awk '$1 == "dependency" { print $2 }' <<< "$to_install")"
 
-          required="$(head -1 <<< "$to_install")"
-          dependencies="$(tail -n+2 <<< "$to_install")"
-          dependencies="${dependencies//$'\n'/ }"
+          {
+            [ -z "$formulae" ] || brew --cache --formula -- $formulae
+            [ -z "$casks" ] || brew --cache --cask -- $casks
+            [ -z "$dependencies" ] || brew --cache -- $dependencies
+          } | sort -u > .brew-install/cache-paths.txt
+          printf '%s\n' "$to_install" | awk 'NF' | sort -u > .brew-install/packages.txt
 
-          touch .brew-install/cache-paths.txt
-          [ -z "$required" ] || brew --cache $flags -- $required >> .brew-install/cache-paths.txt
-          [ -z "$dependencies" ] || brew --cache -- $dependencies >> .brew-install/cache-paths.txt
-          sort --unique --output=.brew-install/cache-paths.txt .brew-install/cache-paths.txt
-
-          sort --unique --output=.brew-install/packages.txt <<< "${to_install// /$'\n'}"
-
-          echo 'cache-paths<<"EOF"' >> "$GITHUB_OUTPUT"
-          cat .brew-install/cache-paths.txt >> "$GITHUB_OUTPUT"
-          echo '"EOF"' >> "$GITHUB_OUTPUT"
+          {
+            echo 'cache-paths<<"EOF"'
+            cat .brew-install/cache-paths.txt
+            echo '"EOF"'
+          } >> "$GITHUB_OUTPUT"
         fi
       shell: bash
     - name: Restore cache
