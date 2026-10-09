@@ -34,21 +34,35 @@ runs:
 
         if [ ${{ inputs.cache }} == 'true' ]; then
           mkdir .brew-install
+          to_install=$(brew install $flags --dry-run --quiet -- $packages | awk '
+            /^==> Would (install|upgrade|reinstall) [0-9]+ formula(e|s)?:/ {
+              section = "formula"; next
+            }
+            /^==> Would (install|upgrade|reinstall) [0-9]+ casks?:/ {
+              section = "cask"; next
+            }
+            /^==> Would (install|upgrade|reinstall) [0-9]+ dependenc(y|ies)/ {
+              section = "dependency"; next
+            }
+            /^==>/ { section = ""; next }
+            /installed but outdated/ { next }
+            section == "formula" && NF { print "required", $1 }
+            section == "cask" && NF {
+              for (i = 1; i <= NF; i++) print "required", $i
+            }
+            section == "dependency" && NF {
+              for (i = 1; i <= NF; i++) print "dependency", $i
+            }
+          ')
 
-          to_install=$(brew install $flags --dry-run --quiet -- $packages \
-            | { grep --invert-match --extended-regexp --regexp='==>|installed but outdated' || true; } )
-
-          required="$(head -1 <<< "$to_install")"
-          dependencies="$(tail -n+2 <<< "$to_install")"
-          dependencies="${dependencies//$'\n'/ }"
-
+          required="$(awk '$1 == "required" { print $2 }' <<< "$to_install")"
+          dependencies="$(awk '$1 == "dependency" { print $2 }' <<< "$to_install")"
           touch .brew-install/cache-paths.txt
           [ -z "$required" ] || brew --cache $flags -- $required >> .brew-install/cache-paths.txt
           [ -z "$dependencies" ] || brew --cache -- $dependencies >> .brew-install/cache-paths.txt
           sort --unique --output=.brew-install/cache-paths.txt .brew-install/cache-paths.txt
 
-          sort --unique --output=.brew-install/packages.txt <<< "${to_install// /$'\n'}"
-
+          awk 'NF > 1 { print $2 }' <<< "$to_install" | sort --unique > .brew-install/packages.txt
           echo 'cache-paths<<"EOF"' >> "$GITHUB_OUTPUT"
           cat .brew-install/cache-paths.txt >> "$GITHUB_OUTPUT"
           echo '"EOF"' >> "$GITHUB_OUTPUT"
