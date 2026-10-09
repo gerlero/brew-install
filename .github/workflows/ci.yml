@@ -83,11 +83,15 @@ jobs:
         with:
           packages: python
           cache: ${{ matrix.cache }}
+      - name: Check installed formula
+        run: python3 --version
       - name: Install new formula
         uses: ./
         with:
           packages: open-mpi
           cache: ${{ matrix.cache }}
+      - name: Check installed formula
+        run: mpiexec --version
       - name: Install cask
         if: runner.os == 'macOS'
         uses: ./
@@ -95,3 +99,6 @@ jobs:
           packages: vv
           type: cask
           cache: ${{ matrix.cache }}
+      - name: Check installed cask
+        if: runner.os == 'macOS'
+        run: vv --version
