@@ -35,8 +35,32 @@ runs:
         if [ ${{ inputs.cache }} == 'true' ]; then
           mkdir .brew-install
 
-          to_install=$(brew install $flags --dry-run --quiet -- $packages \
-            | { grep --invert-match --extended-regexp --regexp='==>|installed but outdated' || true; } )
+          to_install=$(HOMEBREW_NO_COLOR=1 brew install $flags --dry-run --quiet -- $packages |
+            awk '
+              /installed but outdated/ { next }
+              /^==> Would (install|upgrade|reinstall) [0-9]+ casks?:/ {
+                type = "cask"; section = "required"; next
+              }
+              /^==> Would (install|upgrade|reinstall) [0-9]+ formula(e|s)?:/ {
+                type = "formula"; section = "required"; next
+              }
+              /^==> Would (install|upgrade|reinstall) [0-9]+ dependenc(y|ies)/ {
+                section = "dependencies"; next
+              }
+              /^==>/ { section = ""; next }
+              !NF || !section { next }
+              {
+                names = (type == "formula" ? $1 : $0)
+                if (section == "required") required = required " " names
+                else dependencies = dependencies " " names
+              }
+              END {
+                sub(/^ /, "", required)
+                sub(/^ /, "", dependencies)
+                print required
+                print dependencies
+              }
+            ')
 
           required="$(head -1 <<< "$to_install")"
           dependencies="$(tail -n+2 <<< "$to_install")"
